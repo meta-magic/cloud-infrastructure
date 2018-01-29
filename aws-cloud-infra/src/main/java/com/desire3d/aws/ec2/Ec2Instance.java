@@ -7,8 +7,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.log4j.Logger;
 
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
@@ -44,7 +43,7 @@ import com.desire3d.aws.dto.Ec2InstanceConfig;
  */
 public class Ec2Instance {
 	
-	private static final Logger logger = LoggerFactory.getLogger(Ec2Instance.class);
+	private static final Logger logger = org.apache.log4j.Logger.getLogger(Ec2Instance.class);
 	
 	private final String ACCESS_KEY;
 	
@@ -59,12 +58,13 @@ public class Ec2Instance {
 	
 	public static AWSCredentials credentials;
 	public static AmazonEC2 amazonEC2;
-	public static Regions region = Regions.US_EAST_2;
+	private Regions region;
 	
-	public Ec2Instance(final String accessKey, final String secretKey) {
+	public Ec2Instance(final String accessKey, final String secretKey, final String regionName) {
 		super();
 		this.ACCESS_KEY = accessKey;
 		this.SECRET_KEY = secretKey;
+		this.region = Regions.fromName(regionName);
 		init();
 	}
 
@@ -73,14 +73,17 @@ public class Ec2Instance {
 		
 		credentials = new BasicAWSCredentials(ACCESS_KEY, SECRET_KEY);
 		
-		amazonEC2 = AmazonEC2ClientBuilder.standard()
-								.withRegion(region)
-								.withCredentials(new AWSStaticCredentialsProvider(credentials))
-								.build();
+		AmazonEC2ClientBuilder amazonEC2ClientBuilder = AmazonEC2ClientBuilder.standard()
+									.withCredentials(new AWSStaticCredentialsProvider(credentials));
+		if(region != null) {
+			amazonEC2ClientBuilder.withRegion(region);
+		}
+		
+		amazonEC2 = amazonEC2ClientBuilder.build();
 		logger.info("-------------INITILIZATION OF AMAZON EC2 SERVICE COMPLETED-------------");
 	}
 	
-	public void createEc2Instance(final Ec2InstanceConfig ec2InstanceConfig) {
+	public List<Instance> createEc2Instance(final Ec2InstanceConfig ec2InstanceConfig) {
 		logger.info("-------------AMAZON EC2 INSTANCE CREATION STARTED-------------");
 		try {
 			this.createKeyPair(ec2InstanceConfig.getInstanceName(), ec2InstanceConfig.getLocalKeyStore());
@@ -96,13 +99,12 @@ public class Ec2Instance {
 								.withUserData(prepareUserData(ec2InstanceConfig.getInstanceName(), ec2InstanceConfig.getUserDataExchangePath()));
 
 			final RunInstancesResult runInstancesResult = amazonEC2.runInstances(runInstancesRequest);
-			final String reservationId = runInstancesResult.getReservation().getReservationId();
-			logger.info("Ec2 {} reservation based on AMI {} creation started", reservationId, ec2InstanceConfig.getAmiId());
-			this.waitForStatusChange(runInstancesResult.getReservation().getInstances());
+			logger.info("-------------AMAZON EC2 INSTANCE CREATION SUCCESSFULLY COMPLETED-------------");
+			return runInstancesResult.getReservation().getInstances();
 		} catch(Exception e) {
 			e.printStackTrace();
+			throw e;
 		}
-		logger.info("-------------AMAZON EC2 INSTANCE CREATION SUCCESSFULLY COMPLETED-------------");
 	}
 	
 	private String prepareUserData(final String userId, final String userDataExchangePath) {
@@ -117,13 +119,12 @@ public class Ec2Instance {
 		commandBuilder.append(userDataExchangePath);
 
 		String script = String.format(commandBuilder.toString(), userId, userId);
-		System.out.println(script);
 		String encodedUserDataScript = java.util.Base64.getEncoder().encodeToString(script.getBytes());
-		logger.info("-------------USER DATA PAREPARED WITH BASE64 ENCODING {}-------------", encodedUserDataScript);
+		logger.info("-------------USER DATA PAREPARED WITH BASE64 ENCODING "+ encodedUserDataScript +"-------------");
 		return encodedUserDataScript;
 	}
 
-	private void waitForStatusChange(final List<Instance> instances) {
+	public void waitForStatusChangeToRunning(final List<Instance> instances) {
 		logger.info("-------------AMAZON EC2 INSTANCE WAITING FOR RUNNING STATE-------------");
 		
 		Set<String> instanceIds = instances.parallelStream()
@@ -147,7 +148,7 @@ public class Ec2Instance {
 				this.sleep(30);
 			}
 		} while (true);
-		logger.info("-------------AMAZON EC2 {} INSTANCE TURNED TO RUNNING STATE-------------",instanceIds);
+		logger.info("-------------AMAZON EC2 " + instanceIds + " INSTANCE TURNED TO RUNNING STATE-------------");
 	}
 	
 	private void sleep(final long timeout) {
@@ -199,13 +200,14 @@ public class Ec2Instance {
 		logger.info("-------------KEY-PAIR FILE WRITING STARTED-------------");
 		try {
 			String fileName = new StringBuilder(localKeyStore)
+									.append("/")
 									.append(keyName)
 									.append(".pem")
 									.toString();
 			PrintWriter writer = new PrintWriter(fileName, "UTF-8");
 			writer.print(privateKey);
 			writer.close();
-			logger.info("-------------KEY-PAIR FILE {} WRITEN-------------", fileName);
+			logger.info("-------------KEY-PAIR FILE " + fileName + " WRITEN-------------");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -233,7 +235,7 @@ public class Ec2Instance {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		logger.info("{} Running Instances Available", runningInstances.size());
+		logger.info(runningInstances.size() + " Running Instances Available");
 		logger.info("-------------REQUEST TO GET AMAZON EC2 RUNNING INSTANCE COMPLETED-------------");
 		return runningInstances;
 	}
