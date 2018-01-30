@@ -2,8 +2,8 @@ package com.desire3d.aws.ec2;
 
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -83,7 +83,7 @@ public class Ec2Instance {
 		logger.info("-------------INITILIZATION OF AMAZON EC2 SERVICE COMPLETED-------------");
 	}
 	
-	public List<Instance> createEc2Instance(final Ec2InstanceConfig ec2InstanceConfig) {
+	public List<Instance> createInstance(final Ec2InstanceConfig ec2InstanceConfig) {
 		logger.info("-------------AMAZON EC2 INSTANCE CREATION STARTED-------------");
 		try {
 			this.createKeyPair(ec2InstanceConfig.getInstanceName(), ec2InstanceConfig.getLocalKeyStore());
@@ -104,58 +104,6 @@ public class Ec2Instance {
 		} catch(Exception e) {
 			e.printStackTrace();
 			throw e;
-		}
-	}
-	
-	private String prepareUserData(final String userId, final String userDataExchangePath) {
-		logger.info("-------------USER DATA PREPARATION STARTED-------------");
-
-		StringBuilder commandBuilder = new StringBuilder();
-		commandBuilder.append("#!/bin/bash");
-		commandBuilder.append("\n");
-		commandBuilder.append("echo userid=%s >> /home/ubuntu/userdetails.txt");
-		commandBuilder.append("\n");
-		commandBuilder.append("sed -i \"s/@@userid/%s/g\" ");
-		commandBuilder.append(userDataExchangePath);
-
-		String script = String.format(commandBuilder.toString(), userId, userId);
-		String encodedUserDataScript = java.util.Base64.getEncoder().encodeToString(script.getBytes());
-		logger.info("-------------USER DATA PAREPARED WITH BASE64 ENCODING "+ encodedUserDataScript +"-------------");
-		return encodedUserDataScript;
-	}
-
-	public void waitForStatusChangeToRunning(final List<Instance> instances) {
-		logger.info("-------------AMAZON EC2 INSTANCE WAITING FOR RUNNING STATE-------------");
-		
-		Set<String> instanceIds = instances.parallelStream()
-											.map(instance -> instance.getInstanceId())
-											.collect(Collectors.toSet());
-		
-		DescribeInstanceStatusRequest describeInstanceRequest = new DescribeInstanceStatusRequest()
-																	.withInstanceIds(instanceIds);
-		do {
-			List<InstanceStatus> instanceStatusList = amazonEC2.describeInstanceStatus(describeInstanceRequest)
-																.getInstanceStatuses();
-			Integer runningInstanceCount = 0;
-			for(InstanceStatus instanceStatus : instanceStatusList) { 
-				if(instanceStatus.getInstanceState().getName().equals(InstanceStateName.Running.toString())) {
-					runningInstanceCount++;
-				}
-			}
-			if(runningInstanceCount == instanceIds.size()) {
-				break;
-			} else { 
-				this.sleep(30);
-			}
-		} while (true);
-		logger.info("-------------AMAZON EC2 " + instanceIds + " INSTANCE TURNED TO RUNNING STATE-------------");
-	}
-	
-	private void sleep(final long timeout) {
-		try {
-			TimeUnit.SECONDS.sleep(timeout);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
 		}
 	}
 	
@@ -180,8 +128,180 @@ public class Ec2Instance {
 		logger.info("-------------AMAZON EC2 INSTANCE STOP REQUEST SENT-------------");
 	}
 	
+	public List<Instance> getRunningInstances() {
+		logger.info("-------------REQUEST TO GET AMAZON EC2 RUNNING INSTANCE STARTED-------------");
+		List<Instance> runningInstances = new ArrayList<Instance>();
+		try {
+			DescribeInstancesResult result = amazonEC2.describeInstances();
+			List<Reservation> reservations = result.getReservations();
+			for (Reservation reservation : reservations) {
+				List<Instance> instances = reservation.getInstances()
+														.stream()
+														.filter(instance -> instance.getState().getName().equals(InstanceStateName.Running.toString()))
+														.collect(Collectors.toList());
+				runningInstances.addAll(instances);
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		logger.info(runningInstances.size() + " Running Instances Available");
+		logger.info("-------------REQUEST TO GET AMAZON EC2 RUNNING INSTANCE COMPLETED-------------");
+		return runningInstances;
+	}
+	
+
+	/**
+	 * method to get current status on instances
+	 * @param instances
+	 * @return {@link InstanceStatus}
+	 * */
+	public List<InstanceStatus> getInstanceStatus(final Collection<Instance> instances) {
+		return amazonEC2.describeInstanceStatus(new DescribeInstanceStatusRequest()
+													.withInstanceIds(
+															instances.parallelStream()
+																	.map(instance -> instance.getInstanceId())
+																	.collect(Collectors.toSet())
+												)
+											).getInstanceStatuses();
+	}
+	
+	/**
+	 * method to get current status on instances
+	 * @param instances
+	 * @return {@link InstanceStatus}
+	 * */
+	public List<InstanceStatus> getInstanceStatus(final String... instanceIds) {
+		return amazonEC2.describeInstanceStatus(new DescribeInstanceStatusRequest()
+													.withInstanceIds(instanceIds)
+											).getInstanceStatuses();
+	}
+	
+	/** 
+	 * method used to wait until instances states changed to running
+	 * 
+	 * @param instanceIds
+	 * @return {@link InstanceStatus}   
+	 * */
+	public List<InstanceStatus> waitForStatusChangeToRunning(final Collection<String> instanceIds) {
+		return waitForStatusChange(InstanceStateName.Running.toString(), instanceIds);
+	}
+	
+	/** 
+	 * method used to wait until state changed to running
+	 * 
+	 * @param instanceIds
+	 * @return {@link InstanceStatus}   
+	 * */
+	public List<InstanceStatus> waitForStatusChangeToRunning(final String... instanceIds) {
+		return waitForStatusChange(InstanceStateName.Running.toString(), instanceIds);
+	}
+
+	/** 
+	 * method used to wait until instances states changed to running
+	 * 
+	 * @param instanceIds
+	 * @return {@link InstanceStatus}   
+	 * */
+	public List<InstanceStatus> waitForStatusChangeToStopped(final Collection<String> instanceIds) {
+		return waitForStatusChange(InstanceStateName.Stopped.toString(), instanceIds);
+	}
+	
+	/** 
+	 * method used to wait until instances states changed to running
+	 * 
+	 * @param instanceIds
+	 * @return {@link InstanceStatus}   
+	 * */
+	public List<InstanceStatus> waitForStatusChangeToStopped(final String... instanceIds) {
+		return waitForStatusChange(InstanceStateName.Stopped.toString(), instanceIds);
+	}
+
+	/** 
+	 * method used to wait until instances states changed to running
+	 * 
+	 * @param instances
+	 * @return {@link InstanceStatus}   
+	 * */
+	public List<InstanceStatus> waitForStatusChangeToTerminated(final java.util.Collection<String> instanceIds) {
+		return waitForStatusChange(InstanceStateName.Terminated.toString(), instanceIds);
+	}
+	
+	/** 
+	 * method used to wait until instances states changed to running
+	 * 
+	 * @param instanceIds
+	 * @return {@link InstanceStatus}   
+	 * */
+	public List<InstanceStatus> waitForStatusChangeToTerminated(final String... instanceIds) {
+		return waitForStatusChange(InstanceStateName.Terminated.toString(), instanceIds);
+	}
+	
+	private List<InstanceStatus> waitForStatusChange(final String stateName, java.util.Collection<String> instanceIds) {
+		return this.requestWait(stateName, new DescribeInstanceStatusRequest()
+						.withInstanceIds(instanceIds)
+					);
+	}
+	
+	private List<InstanceStatus> waitForStatusChange(final String stateName, String... instanceIds) {
+		return this.requestWait(stateName, new DescribeInstanceStatusRequest()
+						.withInstanceIds(instanceIds)
+					);
+	}
+	
+	private List<InstanceStatus> requestWait(final String stateName, final DescribeInstanceStatusRequest describeInstanceRequest) {
+		logger.info("-------------AMAZON EC2 INSTANCE WAITING FOR " + stateName + " STATE-------------");		
+		final Integer waitThreshold = 120; 
+		Integer waitingTime = 0;
+		
+		List<InstanceStatus> instanceStatusList;
+		do {
+			instanceStatusList = amazonEC2.describeInstanceStatus(describeInstanceRequest)
+										  .getInstanceStatuses();
+			Integer runningInstanceCount = instanceStatusList.parallelStream()
+											.filter(instanceStatus -> instanceStatus.getInstanceState().getName().equals(stateName))
+											.collect(Collectors.toList())
+											.size();
+			
+			if(!instanceStatusList.isEmpty() && runningInstanceCount == instanceStatusList.size()) {
+				break;
+			} else if (waitingTime >= waitThreshold) {
+				break;
+			} else { 
+				waitingTime = waitingTime + 20;
+				this.sleep(20);
+			}
+		} while (true);
+		logger.info("-------------AMAZON EC2 INSTANCE TURNED TO " + stateName + " STATE-------------");
+		return instanceStatusList;
+	}
+	
+	private void sleep(final long timeout) {
+		try {
+			TimeUnit.SECONDS.sleep(timeout);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	private String prepareUserData(final String userId, final String userDataExchangePath) {
+		logger.info("-------------USER DATA PREPARATION STARTED-------------");
+
+		StringBuilder commandBuilder = new StringBuilder();
+		commandBuilder.append("#!/bin/bash");
+		commandBuilder.append("\n");
+		commandBuilder.append("echo userid=%s >> /home/ubuntu/userdetails.txt");
+		commandBuilder.append("\n");
+		commandBuilder.append("sed -i \"s/@@userid/%s/g\" ");
+		commandBuilder.append(userDataExchangePath);
+
+		String script = String.format(commandBuilder.toString(), userId, userId);
+		String encodedUserDataScript = java.util.Base64.getEncoder().encodeToString(script.getBytes());
+		logger.info("-------------USER DATA PAREPARED WITH BASE64 ENCODING "+ encodedUserDataScript +"-------------");
+		return encodedUserDataScript;
+	}
+	
 	/** METHOD TO HANDLE KEY PAIR OPERATIONS */
-	public void createKeyPair(final String keyName, final String localKeyStore) {
+	private void createKeyPair(final String keyName, final String localKeyStore) {
 		logger.info("-------------AMAZON EC2 INSTANCE KEY-PAIR CREATION STARTED-------------");
 		CreateKeyPairRequest createKeyPairRequest = new CreateKeyPairRequest().withKeyName(keyName);
 		CreateKeyPairResult createKeyPairResult = amazonEC2.createKeyPair(createKeyPairRequest);
@@ -189,7 +309,7 @@ public class Ec2Instance {
 		this.writePemFile(keyName, privateKey, localKeyStore);
 		logger.info("-------------AMAZON EC2 INSTANCE KEY-PAIR CREATION COMPLETED-------------");
 	}
-	
+
 	@SuppressWarnings("unused")
 	private List<KeyPairInfo> getKeyPairs() {
 		DescribeKeyPairsResult describeKeyPairsResult = amazonEC2.describeKeyPairs();
@@ -217,26 +337,5 @@ public class Ec2Instance {
 		return new TagSpecification()
 				.withResourceType(ResourceType.Instance)
 				.withTags(new Tag("Name", instanceName));
-	}
-	
-	public List<Instance> getRunningInstances() {
-		logger.info("-------------REQUEST TO GET AMAZON EC2 RUNNING INSTANCE STARTED-------------");
-		List<Instance> runningInstances = new ArrayList<Instance>();
-		try {
-			DescribeInstancesResult result = amazonEC2.describeInstances();
-			List<Reservation> reservations = result.getReservations();
-			for (Reservation reservation : reservations) {
-				List<Instance> instances = reservation.getInstances()
-														.stream()
-														.filter(instance -> instance.getState().getName().equals(InstanceStateName.Running.toString()))
-														.collect(Collectors.toList());
-				runningInstances.addAll(instances);
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		logger.info(runningInstances.size() + " Running Instances Available");
-		logger.info("-------------REQUEST TO GET AMAZON EC2 RUNNING INSTANCE COMPLETED-------------");
-		return runningInstances;
 	}
 }
