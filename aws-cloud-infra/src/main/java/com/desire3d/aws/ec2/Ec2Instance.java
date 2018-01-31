@@ -157,6 +157,7 @@ public class Ec2Instance {
 	 * */
 	public List<InstanceStatus> getInstanceStatus(final Collection<Instance> instances) {
 		return amazonEC2.describeInstanceStatus(new DescribeInstanceStatusRequest()
+													.withIncludeAllInstances(true)
 													.withInstanceIds(
 															instances.parallelStream()
 																	.map(instance -> instance.getInstanceId())
@@ -172,6 +173,7 @@ public class Ec2Instance {
 	 * */
 	public List<InstanceStatus> getInstanceStatus(final String... instanceIds) {
 		return amazonEC2.describeInstanceStatus(new DescribeInstanceStatusRequest()
+													.withIncludeAllInstances(true)
 													.withInstanceIds(instanceIds)
 											).getInstanceStatuses();
 	}
@@ -238,12 +240,14 @@ public class Ec2Instance {
 	
 	private List<InstanceStatus> waitForStatusChange(final String stateName, java.util.Collection<String> instanceIds) {
 		return this.requestWait(stateName, new DescribeInstanceStatusRequest()
+						.withIncludeAllInstances(true)
 						.withInstanceIds(instanceIds)
 					);
 	}
 	
 	private List<InstanceStatus> waitForStatusChange(final String stateName, String... instanceIds) {
 		return this.requestWait(stateName, new DescribeInstanceStatusRequest()
+						.withIncludeAllInstances(true)
 						.withInstanceIds(instanceIds)
 					);
 	}
@@ -263,6 +267,7 @@ public class Ec2Instance {
 											.size();
 			
 			if(!instanceStatusList.isEmpty() && runningInstanceCount == instanceStatusList.size()) {
+				logger.info("-------------AMAZON EC2 INSTANCE WAITING TIME FOR " + stateName + " STATE HAS EXPIRED-------------");
 				break;
 			} else if (waitingTime >= waitThreshold) {
 				break;
