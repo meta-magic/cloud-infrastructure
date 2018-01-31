@@ -5,6 +5,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
+import org.junit.Before;
+import org.junit.Test;
 
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.ec2.model.Instance;
@@ -26,12 +28,12 @@ public class Ec2InstanceTests {
 	
 	private final String instanceId = "i-0321ad2c8077041d6";
 	
-//	@Before
+	@Before
 	public void init() {
 		ec2Example = new Ec2Instance(ACCESS_KEY, SECRET_KEY, Regions.US_EAST_2.getName());
 	}
 	
-//	@Test
+	@Test
 	public void testCreateInstance() {
 		Ec2InstanceConfig config = new Ec2InstanceConfig(UUID.randomUUID().toString(), "ami-c52712a0", "t2.micro", "subnet-5f0e1c24", "sg-594cbe32")
 									.withLocalKeyStore(LOCAL_KEY_STORE)
@@ -40,7 +42,9 @@ public class Ec2InstanceTests {
 		List<Instance> result = ec2Example.createInstance(config);
 		List<String> instanceIds = result.parallelStream().map(i -> i.getInstanceId()).collect(Collectors.toList());
 		List<InstanceStatus> instanceStatuses = ec2Example.waitForStatusChangeToRunning(instanceIds);
-		logger.info(instanceStatuses.parallelStream().map(is -> is.getInstanceState().getName()).collect(Collectors.toList()));
+		Instance instance = ec2Example.getInstanceById(instanceIds.get(0));
+		
+		logger.info(instanceStatuses.parallelStream().map(is -> is.getInstanceState().getName()).collect(Collectors.toList()) + " "+ instance);
 	}
 
 	//	@Test

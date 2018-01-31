@@ -18,6 +18,7 @@ import com.amazonaws.services.ec2.AmazonEC2ClientBuilder;
 import com.amazonaws.services.ec2.model.CreateKeyPairRequest;
 import com.amazonaws.services.ec2.model.CreateKeyPairResult;
 import com.amazonaws.services.ec2.model.DescribeInstanceStatusRequest;
+import com.amazonaws.services.ec2.model.DescribeInstancesRequest;
 import com.amazonaws.services.ec2.model.DescribeInstancesResult;
 import com.amazonaws.services.ec2.model.DescribeKeyPairsResult;
 import com.amazonaws.services.ec2.model.Instance;
@@ -46,15 +47,7 @@ public class Ec2Instance {
 	private static final Logger logger = org.apache.log4j.Logger.getLogger(Ec2Instance.class);
 	
 	private final String ACCESS_KEY;
-	
 	private final String SECRET_KEY;
-	
-//	private static final String IMAGE_ID = "ami-a5f3d9c0";	
-//	private static final String INSTANCE_TYPE = "t2.micro";
-//	private static final String SUBNET_ID = "subnet-5f0e1c24";
-//	private static final String SECURITY_GROUP_ID = "sg-594cbe32";
-//	private static final String LOCAL_KEY_STORE = "/home/mahesh/platform/workspace_after_jdo/aws-example/src/main/resources/keystore/";
-//	private static final String USER_DATA_EXCHANGE_PATH = "/Softwares/tc9/webapps/code-pipeline-service/WEB-INF/classes/application.properties";
 	
 	public static AWSCredentials credentials;
 	public static AmazonEC2 amazonEC2;
@@ -126,6 +119,24 @@ public class Ec2Instance {
 		TerminateInstancesRequest terminateInstancesRequest = new TerminateInstancesRequest().withInstanceIds(instanceId);
 		amazonEC2.terminateInstances(terminateInstancesRequest);
 		logger.info("-------------AMAZON EC2 INSTANCE STOP REQUEST SENT-------------");
+	}
+	
+	/**
+	 * method to get a single instance by id
+	 * 
+	 * @param instanceId
+	 * @return {@link Instance}
+	 * */
+	public Instance getInstanceById(final String instanceId) {
+		final DescribeInstancesResult describeInstancesResult = amazonEC2.describeInstances(new DescribeInstancesRequest());
+		for(Reservation reservation : describeInstancesResult.getReservations()) {
+			for(Instance instance : reservation.getInstances()) {
+				if(instance.getInstanceId().equals(instanceId)) {
+					return instance;
+				}
+			}
+		}
+		return null;
 	}
 	
 	public List<Instance> getRunningInstances() {
@@ -254,7 +265,7 @@ public class Ec2Instance {
 	
 	private List<InstanceStatus> requestWait(final String stateName, final DescribeInstanceStatusRequest describeInstanceRequest) {
 		logger.info("-------------AMAZON EC2 INSTANCE WAITING FOR " + stateName + " STATE-------------");		
-		final Integer waitThreshold = 120; 
+		final Integer waitThreshold = 180; 
 		Integer waitingTime = 0;
 		
 		List<InstanceStatus> instanceStatusList;
