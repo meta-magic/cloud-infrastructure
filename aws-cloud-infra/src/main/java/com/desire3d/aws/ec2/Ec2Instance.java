@@ -273,9 +273,9 @@ public class Ec2Instance {
 			instanceStatusList = amazonEC2.describeInstanceStatus(describeInstanceRequest)
 										  .getInstanceStatuses();
 			Integer runningInstanceCount = instanceStatusList.parallelStream()
-											.filter(instanceStatus -> instanceStatus.getInstanceState().getName().equals(stateName))
-											.collect(Collectors.toList())
-											.size();
+																	.filter(instanceStatus -> instanceStatus.getInstanceState().getName().equals(stateName))
+																	.collect(Collectors.toList())
+																	.size();;
 			
 			if(!instanceStatusList.isEmpty() && runningInstanceCount == instanceStatusList.size()) {
 				logger.info("-------------AMAZON EC2 INSTANCE WAITING TIME FOR " + stateName + " STATE HAS EXPIRED-------------");
@@ -305,9 +305,9 @@ public class Ec2Instance {
 		StringBuilder commandBuilder = new StringBuilder();
 		commandBuilder.append("#!/bin/bash");
 		commandBuilder.append("\n");
-		commandBuilder.append("echo userid=%s >> /home/ubuntu/userdetails.txt");
+		commandBuilder.append("echo personid=%s >> /home/ubuntu/userdetails.txt");
 		commandBuilder.append("\n");
-		commandBuilder.append("sed -i \"s/@@userid/%s/g\" ");
+		commandBuilder.append("sed -i \"s/@@personid/%s/g\" ");
 		commandBuilder.append(userDataExchangePath);
 
 		String script = String.format(commandBuilder.toString(), userId, userId);
