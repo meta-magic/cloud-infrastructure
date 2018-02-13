@@ -53,6 +53,9 @@ public class Ec2Instance {
 	public static AmazonEC2 amazonEC2;
 	private Regions region;
 	
+	/* Max waiting time(in. seconds) to continue request of Instance State change */
+	final Integer WAITING_THRESHOLD = 180;
+	
 	public Ec2Instance(final String accessKey, final String secretKey, final String regionName) {
 		super();
 		this.ACCESS_KEY = accessKey;
@@ -265,22 +268,31 @@ public class Ec2Instance {
 	
 	private List<InstanceStatus> requestWait(final String stateName, final DescribeInstanceStatusRequest describeInstanceRequest) {
 		logger.info("-------------AMAZON EC2 INSTANCE WAITING FOR " + stateName + " STATE-------------");		
-		final Integer waitThreshold = 180; 
 		Integer waitingTime = 0;
 		
 		List<InstanceStatus> instanceStatusList;
 		do {
 			instanceStatusList = amazonEC2.describeInstanceStatus(describeInstanceRequest)
 										  .getInstanceStatuses();
-			Integer runningInstanceCount = instanceStatusList.parallelStream()
-																	.filter(instanceStatus -> instanceStatus.getInstanceState().getName().equals(stateName))
-																	.collect(Collectors.toList())
-																	.size();;
+			Integer runningInstanceCount = 0;
+			if(stateName.equals(InstanceStateName.Running.toString())) {
+				runningInstanceCount = instanceStatusList.parallelStream()
+						.filter(instanceStatus -> instanceStatus.getInstanceState().getName().equals(stateName) 
+												&& instanceStatus.getInstanceStatus().getStatus().equals("ok") 
+												&& instanceStatus.getSystemStatus().getStatus().equals("ok")
+						).collect(Collectors.toList())
+						.size();
+			} else {
+				runningInstanceCount = instanceStatusList.parallelStream()
+						.filter(instanceStatus -> instanceStatus.getInstanceState().getName().equals(stateName))
+						.collect(Collectors.toList())
+						.size();
+			}
 			
 			if(!instanceStatusList.isEmpty() && runningInstanceCount == instanceStatusList.size()) {
 				logger.info("-------------AMAZON EC2 INSTANCE WAITING TIME FOR " + stateName + " STATE HAS EXPIRED-------------");
 				break;
-			} else if (waitingTime >= waitThreshold) {
+			} else if (waitingTime >= WAITING_THRESHOLD) {
 				break;
 			} else { 
 				waitingTime = waitingTime + 20;

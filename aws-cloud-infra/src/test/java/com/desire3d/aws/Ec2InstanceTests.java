@@ -6,7 +6,6 @@ import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
 import org.junit.Before;
-import org.junit.Test;
 
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.ec2.model.Instance;
@@ -26,16 +25,16 @@ public class Ec2InstanceTests {
 	
 	private Ec2Instance ec2Example;
 	
-	private final String instanceId = "i-0321ad2c8077041d6";
+	private final String instanceId = "i-039e310921a68ff44";
 	
 	@Before
 	public void init() {
 		ec2Example = new Ec2Instance(ACCESS_KEY, SECRET_KEY, Regions.US_EAST_2.getName());
 	}
 	
-	@Test
+//	@Test
 	public void testCreateInstance() {
-		Ec2InstanceConfig config = new Ec2InstanceConfig(UUID.randomUUID().toString(), "ami-c52712a0", "t2.micro", "subnet-5f0e1c24", "sg-594cbe32")
+		Ec2InstanceConfig config = new Ec2InstanceConfig("test-" + UUID.randomUUID().toString(), "ami-857440e0", "t2.micro", "subnet-5f0e1c24", "sg-594cbe32")
 									.withLocalKeyStore(LOCAL_KEY_STORE)
 									.withUserDataExchangePath(USER_DATA_EXCHANGE_PATH); 
 		
