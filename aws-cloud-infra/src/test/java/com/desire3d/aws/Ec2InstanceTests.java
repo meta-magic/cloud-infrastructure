@@ -1,11 +1,12 @@
 package com.desire3d.aws;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
-import org.junit.Before;
 
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.ec2.model.Instance;
@@ -27,17 +28,25 @@ public class Ec2InstanceTests {
 	
 	private final String instanceId = "i-039e310921a68ff44";
 	
-	@Before
+//	@Before
 	public void init() {
 		ec2Example = new Ec2Instance(ACCESS_KEY, SECRET_KEY, Regions.US_EAST_2.getName());
 	}
 	
 //	@Test
 	public void testCreateInstance() {
-		Ec2InstanceConfig config = new Ec2InstanceConfig("test-" + UUID.randomUUID().toString(), "ami-857440e0", "t2.micro", "subnet-5f0e1c24", "sg-594cbe32")
-									.withLocalKeyStore(LOCAL_KEY_STORE)
-									.withUserDataExchangePath(USER_DATA_EXCHANGE_PATH); 
+		String userId = UUID.randomUUID().toString();
+		Map<String, Object> userData = new LinkedHashMap<>();
+		userData.put(Ec2InstanceConfig.UserDataConstants.PERSON_ID, UUID.randomUUID().toString());
+		userData.put(Ec2InstanceConfig.UserDataConstants.USER_ID, userId);
+		userData.put(Ec2InstanceConfig.UserDataConstants.USER_NAME, "Mahesh");
+		userData.put(Ec2InstanceConfig.UserDataConstants.ORGANIZATION_NAME, "MetaMagic");
 		
+		Ec2InstanceConfig config = new Ec2InstanceConfig("test-" + UUID.randomUUID().toString(), "ami-ec5c6d89", "t2.micro", "subnet-5f0e1c24", "sg-594cbe32")
+									.withLocalKeyStore(LOCAL_KEY_STORE)
+									.withUserDataExchangePath(USER_DATA_EXCHANGE_PATH)
+									.withUserData(userData); 
+//		ec2Example.prepareUserData(config);
 		List<Instance> result = ec2Example.createInstance(config);
 		List<String> instanceIds = result.parallelStream().map(i -> i.getInstanceId()).collect(Collectors.toList());
 		List<InstanceStatus> instanceStatuses = ec2Example.waitForStatusChangeToRunning(instanceIds);

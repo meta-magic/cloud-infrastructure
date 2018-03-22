@@ -4,6 +4,7 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -54,7 +55,7 @@ public class Ec2Instance {
 	private Regions region;
 	
 	/* Max waiting time(in. seconds) to continue request of Instance State change */
-	final Integer WAITING_THRESHOLD = 180;
+	final Integer WAITING_THRESHOLD = 300;
 	
 	public Ec2Instance(final String accessKey, final String secretKey, final String regionName) {
 		super();
@@ -91,9 +92,14 @@ public class Ec2Instance {
 								.withSubnetId(ec2InstanceConfig.getSubnetId())
 								.withSecurityGroupIds(ec2InstanceConfig.getSecurityGroupId())
 								.withKeyName(ec2InstanceConfig.getInstanceName())
-								.withTagSpecifications(createTagSpecification(ec2InstanceConfig.getInstanceName()))
-								.withUserData(prepareUserData(ec2InstanceConfig.getInstanceName(), ec2InstanceConfig.getUserDataExchangePath()));
-
+								.withTagSpecifications(createTagSpecification(ec2InstanceConfig.getInstanceName()));
+			
+			if(ec2InstanceConfig.getUserData() != null && !ec2InstanceConfig.getUserData().isEmpty()) {
+				if(ec2InstanceConfig.getUserData().containsKey(Ec2InstanceConfig.UserDataConstants.PERSON_ID)) {
+					runInstancesRequest.withUserData(this.prepareUserData(ec2InstanceConfig));
+				}
+			}
+			
 			final RunInstancesResult runInstancesResult = amazonEC2.runInstances(runInstancesRequest);
 			logger.info("-------------AMAZON EC2 INSTANCE CREATION SUCCESSFULLY COMPLETED-------------");
 			return runInstancesResult.getReservation().getInstances();
@@ -311,18 +317,27 @@ public class Ec2Instance {
 		}
 	}
 	
-	private String prepareUserData(final String userId, final String userDataExchangePath) {
+	public String prepareUserData(final Ec2InstanceConfig ec2InstanceConfig) {
 		logger.info("-------------USER DATA PREPARATION STARTED-------------");
 
 		StringBuilder commandBuilder = new StringBuilder();
 		commandBuilder.append("#!/bin/bash");
 		commandBuilder.append("\n");
-		commandBuilder.append("echo personid=%s >> /home/ubuntu/userdetails.txt");
-		commandBuilder.append("\n");
-		commandBuilder.append("sed -i \"s/@@personid/%s/g\" ");
-		commandBuilder.append(userDataExchangePath);
 
-		String script = String.format(commandBuilder.toString(), userId, userId);
+		for (Entry<String, Object> entry : ec2InstanceConfig.getUserData().entrySet()) {
+			commandBuilder.append("echo ");
+			commandBuilder.append(entry.getKey());
+			commandBuilder.append("=");
+			commandBuilder.append(entry.getValue());
+			commandBuilder.append(" >> /home/ubuntu/userdetails.txt");
+			commandBuilder.append("\n");
+		}
+		
+		commandBuilder.append("sed -i \"s/@@personid/%s/g\" ");
+		commandBuilder.append(ec2InstanceConfig.getUserDataExchangePath());
+		
+		String personId = (String) ec2InstanceConfig.getUserData().get(Ec2InstanceConfig.UserDataConstants.PERSON_ID);
+		String script = String.format(commandBuilder.toString(), personId, personId);
 		String encodedUserDataScript = java.util.Base64.getEncoder().encodeToString(script.getBytes());
 		logger.info("-------------USER DATA PAREPARED WITH BASE64 ENCODING "+ encodedUserDataScript +"-------------");
 		return encodedUserDataScript;

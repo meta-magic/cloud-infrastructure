@@ -1,6 +1,7 @@
 package com.desire3d.aws.dto;
 
 import java.io.Serializable;
+import java.util.Map;
 
 /**
  * Class to supply aws cloud ec2 instance configuration to instances
@@ -25,7 +26,19 @@ public class Ec2InstanceConfig implements Serializable {
 	private String localKeyStore;
 
 	private String userDataExchangePath;
+	
+	private Map<String, Object> userData;
+	
+	/** CONSTANTS FOR USER DATA */
+	public interface UserDataConstants {
+		
+		String PERSON_ID = "person.id";
+		String USER_ID = "user.id";
+		String USER_NAME = "user.name";
+		String ORGANIZATION_NAME = "organization.name";
 
+	}
+	
 	/**
 	 * @param instanceName
 	 * @param amiId
@@ -52,7 +65,7 @@ public class Ec2InstanceConfig implements Serializable {
 	 * @param userDataExchangePath
 	 */
 	public Ec2InstanceConfig(String instanceName, String amiId, String instanceType, String subnetId, String securityGroupId, String localKeyStore,
-			String userDataExchangePath) {
+			String userDataExchangePath, Map<String, Object> userData) {
 		super();
 		this.instanceName = instanceName;
 		this.amiId = amiId;
@@ -61,8 +74,8 @@ public class Ec2InstanceConfig implements Serializable {
 		this.securityGroupId = securityGroupId;
 		this.localKeyStore = localKeyStore;
 		this.userDataExchangePath = userDataExchangePath;
+		this.userData = userData;
 	}
-
 
 	/** 
 	 * method to set local key store path to save instance access key's 
@@ -76,6 +89,11 @@ public class Ec2InstanceConfig implements Serializable {
 		setUserDataExchangePath(userDataExchangePath);
 		return this;
 	}
+	
+	public Ec2InstanceConfig withUserData(Map<String, Object> userData) {
+		setUserData(userData);
+		return this;
+	}
 
 	public void setLocalKeyStore(String localKeyStore) {
 		this.localKeyStore = localKeyStore;
@@ -83,6 +101,14 @@ public class Ec2InstanceConfig implements Serializable {
 
 	public void setUserDataExchangePath(String userDataExchangePath) {
 		this.userDataExchangePath = userDataExchangePath;
+	}
+	
+	public Map<String, Object> getUserData() {
+		return userData;
+	}
+
+	public void setUserData(Map<String, Object> userData) {
+		this.userData = userData;
 	}
 
 	public String getInstanceName() {
